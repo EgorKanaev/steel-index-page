@@ -350,9 +350,17 @@ function renderCompare(days) {
   const from = days ? daysAgo(days) : null;
   const lines = SERIES.map(s => {
     const pts = filterFrom(DATA.series[s.key], from);
-    if (!pts.length) return { ...s, points: [] };
+    // Одна точка — это не динамика: рост «от себя самой» всегда 0 %, и такая
+    // линия только сбивает с толку. Ряд появится, когда наберётся история.
+    if (pts.length < 2) return { ...s, points: [] };
     const base = pts[0][1];
-    return { ...s, points: pts.map(p => [p[0], p[1] / base * 100]) };
+    return {
+      ...s,
+      // Ряды начинаются в разные дни, поэтому база у каждого своя — без даты
+      // в подписи проценты сравнивались бы вслепую.
+      label: `${s.label} · рост с ${DMY(pts[0][0])}`,
+      points: pts.map(p => [p[0], p[1] / base * 100]),
+    };
   });
   draw(
     document.getElementById("chart2"),
