@@ -1,0 +1,408 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Индекс цен на сталь в России</title>
+<meta name="description" content="Ежедневный индекс цен на металлопрокат в России по корзине из 16 сортопозиций">
+<style>
+  :root {
+    color-scheme: light;
+    --surface-1: #fcfcfb;
+    --page: #f9f9f7;
+    --text-primary: #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted: #898781;
+    --grid: #e1e0d9;
+    --axis: #c3c2b7;
+    --border: rgba(11, 11, 11, 0.10);
+    --series-own: #2a78d6;
+    --series-spimex: #eb6834;
+    --series-metalinfo: #1baf7a;
+    --up: #006300;
+    --down: #d03b3b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --surface-1: #1a1a19;
+      --page: #0d0d0d;
+      --text-primary: #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted: #898781;
+      --grid: #2c2c2a;
+      --axis: #383835;
+      --border: rgba(255, 255, 255, 0.10);
+      --series-own: #3987e5;
+      --series-spimex: #d95926;
+      --series-metalinfo: #199e70;
+      --up: #0ca30c;
+      --down: #e66767;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--page);
+    color: var(--text-primary);
+    font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 32px 20px 64px; }
+
+  header h1 { font-size: 22px; font-weight: 600; margin: 0 0 4px; }
+  header p { margin: 0; color: var(--text-secondary); font-size: 14px; }
+
+  .hero {
+    display: flex; flex-wrap: wrap; gap: 28px; align-items: baseline;
+    margin: 24px 0 8px; padding: 20px 22px;
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px;
+  }
+  .hero .value { font-size: 40px; font-weight: 600; letter-spacing: -0.5px; }
+  .hero .unit { font-size: 16px; color: var(--text-secondary); font-weight: 400; margin-left: 6px; }
+  .hero .delta { font-size: 16px; font-weight: 500; }
+  .hero .meta { font-size: 13px; color: var(--text-muted); margin-left: auto; text-align: right; }
+  .up { color: var(--up); }
+  .down { color: var(--down); }
+
+  .card {
+    background: var(--surface-1); border: 1px solid var(--border);
+    border-radius: 10px; padding: 18px 20px 12px; margin-top: 20px;
+  }
+  .card h2 { font-size: 15px; font-weight: 600; margin: 0 0 2px; }
+  .card .sub { font-size: 13px; color: var(--text-secondary); margin: 0 0 14px; }
+
+  .ranges { display: flex; gap: 6px; margin: 0 0 14px; flex-wrap: wrap; }
+  .ranges button {
+    font: inherit; font-size: 13px; padding: 5px 12px; cursor: pointer;
+    background: transparent; color: var(--text-secondary);
+    border: 1px solid var(--border); border-radius: 999px;
+  }
+  .ranges button[aria-pressed="true"] {
+    background: var(--text-primary); color: var(--surface-1); border-color: var(--text-primary);
+  }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 16px; margin: 10px 0 0; font-size: 13px; color: var(--text-secondary); }
+  .legend span { display: inline-flex; align-items: center; gap: 7px; }
+  .legend i { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
+  .legend i.dashed { background: repeating-linear-gradient(90deg, currentColor 0 4px, transparent 4px 7px) !important; }
+
+  .chart { position: relative; }
+  svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .tooltip {
+    position: absolute; pointer-events: none; opacity: 0; transition: opacity .12s;
+    background: var(--surface-1); color: var(--text-primary);
+    border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px;
+    font-size: 13px; box-shadow: 0 4px 16px rgba(0,0,0,.12); white-space: nowrap; z-index: 5;
+  }
+  .tooltip b { font-weight: 600; }
+  .tooltip .row { display: flex; align-items: center; gap: 7px; margin-top: 3px; }
+  .tooltip .row i { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+  .tooltip .num { margin-left: auto; padding-left: 14px; font-variant-numeric: tabular-nums; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--grid); }
+  th { font-weight: 500; color: var(--text-muted); font-size: 12.5px; text-transform: uppercase; letter-spacing: .03em; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tbody tr:last-child td { border-bottom: none; }
+
+  footer { margin-top: 28px; font-size: 13px; color: var(--text-secondary); }
+  footer h3 { font-size: 14px; margin: 0 0 6px; color: var(--text-primary); }
+  footer ul { margin: 0 0 14px; padding-left: 18px; }
+  footer li { margin-bottom: 4px; }
+  a { color: var(--series-own); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>Индекс цен на сталь в России</h1>
+  <p>Ежедневный индекс по корзине из 16 сортопозиций металлопроката</p>
+</header>
+
+<div class="hero">
+  <div>
+    <div class="value" id="heroValue">—<span class="unit">руб/т</span></div>
+    <div class="delta" id="heroDelta"></div>
+  </div>
+  <div class="meta" id="heroMeta"></div>
+</div>
+
+<section class="card">
+  <h2>Индекс день ото дня</h2>
+  <p class="sub" id="chart1Sub">Собственный индекс, руб/т</p>
+  <div class="ranges" id="ranges1"></div>
+  <div class="chart" id="chart1"></div>
+  <div class="legend" id="legend1"></div>
+</section>
+
+<section class="card">
+  <h2>Сравнение с рынком</h2>
+  <p class="sub">Все ряды приведены к 100 на начало периода — так их можно сравнивать, несмотря на разные уровни цен</p>
+  <div class="ranges" id="ranges2"></div>
+  <div class="chart" id="chart2"></div>
+  <div class="legend" id="legend2"></div>
+</section>
+
+<section class="card">
+  <h2>Позиции корзины</h2>
+  <p class="sub" id="positionsSub">Цены, из которых считается индекс</p>
+  <table>
+    <thead>
+      <tr><th>Сортопозиция</th><th class="num">Цена, руб/т</th><th class="num">За сутки</th></tr>
+    </thead>
+    <tbody id="positionsBody"></tbody>
+  </table>
+</section>
+
+<footer>
+  <h3>Как это считается</h3>
+  <ul>
+    <li>Индекс — простое среднее арифметическое цен корзины, той же методикой, что у metalinfo.ru: их значение равно среднему по их таблице сортопозиций. Разница в частоте: там пересчёт раз в 1–1,5 месяца, здесь — каждый день.</li>
+    <li>Цены позиций — медиана по складам металлотрейдера brokinvest.ru.</li>
+    <li>Биржевой ряд СПбМТСБ — независимая проверка по официальным бюллетеням торгов. Он стоит на своём уровне, поэтому сравнивать с ним нужно форму линии, а не высоту.</li>
+    <li>Пунктирный участок до <span id="factFrom">начала сбора</span> — оценка: собственных данных за те дни не существует, взята форма дневной динамики биржи.</li>
+  </ul>
+  <p id="updatedLine"></p>
+</footer>
+
+</div>
+
+<script>
+const DATA = {"updated":"2026-09-09","factFrom":"2026-09-09","series":{"own":[["2026-09-09",77996.88]],"own_est":[["2026-09-01",77056.45],["2026-09-02",78261.14],["2026-09-03",78552.99],["2026-09-04",78552.99],["2026-09-05",78222.06],["2026-09-06",77891.14],["2026-09-07",77560.21],["2026-09-08",78612.5]],"spimex":[["2026-07-16",71620.0],["2026-07-17",70562.67],["2026-07-20",73409.33],["2026-07-21",73409.33],["2026-07-22",73417.67],["2026-07-23",74026.0],["2026-07-27",75359.33],["2026-07-28",75359.33],["2026-07-29",75767.67],["2026-07-30",75276.0],["2026-07-31",75401.0],["2026-08-03",75567.67],["2026-08-04",75567.67],["2026-08-05",75567.67],["2026-08-06",75567.67],["2026-08-07",75567.67],["2026-08-10",75776.0],["2026-08-11",79619.0],["2026-08-12",79535.67],["2026-08-13",79310.67],["2026-08-14",79535.67],["2026-08-17",79535.67],["2026-08-18",79535.67],["2026-08-19",80474.67],["2026-08-20",80049.67],["2026-08-21",80058.0],["2026-08-24",80058.0],["2026-08-25",79508.0],["2026-08-26",79508.0],["2026-08-27",78458.0],["2026-08-28",78841.33],["2026-08-31",79208.0],["2026-09-01",79208.0],["2026-09-02",80446.33],["2026-09-03",80746.33],["2026-09-04",80746.33],["2026-09-07",79725.83],["2026-09-08",80807.5],["2026-09-09",79924.17]],"metalinfo":[["2025-01-15",69184.72],["2025-01-31",67989.35],["2025-02-11",67801.39],["2025-02-26",67817.59],["2025-03-14",68065.28],["2025-03-29",68212.5],["2025-04-18",68885.65],["2025-05-01",69029.63],["2025-05-14",69245.83],["2025-06-03",69329.17],["2025-06-18",68955.09],["2025-07-01",69006.02],["2025-07-16",68471.3],["2025-07-31",67231.94],["2025-09-05",65519.91],["2025-09-24",63423.15],["2025-10-16",63474.31],["2025-11-07",62713.89],["2025-12-01",61341.2],["2025-12-23",60288.89],["2026-01-23",60317.13],["2026-02-13",60115.28],["2026-03-05",59956.94],["2026-04-02",60602.31],["2026-04-30",61485.65],["2026-05-25",63799.54],["2026-06-30",69676.39],["2026-07-17",73858.33],["2026-08-06",78220.83],["2026-09-08",79091.2]]},"positions":[{"title":"Арматура A III А500С СТО АСЧМ 7-93 ф10мм","short":"Арматура А500С ф10","price":70000.0,"prev":null,"date":"2026-09-09"},{"title":"Арматура A III А500С СТО АСЧМ 7-93 ф12мм","short":"Арматура А500С ф12","price":68000.0,"prev":69950.0,"date":"2026-09-09"},{"title":"Арматура В500С ГОСТ Р 52544-2006 ф8мм","short":"Арматура А500С ф8","price":70000.0,"prev":null,"date":"2026-09-09"},{"title":"Проволока О/К ГОСТ 3282-74 ф1,2мм","short":"Проволока О/К ф1,2","price":100000.0,"prev":null,"date":"2026-09-09"},{"title":"Лист г/к ГОСТ 16523-89 4х1500х6000 мм","short":"Лист г/к 4х1500х6000","price":65550.0,"prev":null,"date":"2026-09-09"},{"title":"Лист х/к ГОСТ 16523-89 0,8-1х1250х2500 мм","short":"Лист х/к 0,8х1250х2500","price":70200.0,"prev":null,"date":"2026-09-09"},{"title":"Лист оцинк. ГОСТ 14918-80 0,55х1250х2500 мм","short":"Лист оцинк. 0,55х1250","price":97900.0,"prev":null,"date":"2026-09-09"},{"title":"Труба ВГП ГОСТ 3262-75 20х2,8 мм","short":"Труба ВГП 20х2,8","price":60600.0,"prev":null,"date":"2026-09-09"},{"title":"Труба ВГП ГОСТ 3262-75 32х3,2 мм","short":"Труба ВГП 32х3,2","price":59600.0,"prev":null,"date":"2026-09-09"},{"title":"Труба Э/С ГОСТ 10704-91 89х3,5 мм","short":"Труба Э/С 89х3,5","price":59600.0,"prev":null,"date":"2026-09-09"},{"title":"Труба Э/С ГОСТ 10704-91 102х3 мм","short":"Труба Э/С 108х3,5","price":61600.0,"prev":null,"date":"2026-09-09"},{"title":"Уголок Р/П ГОСТ 8509-86 63х5-6 мм","short":"Уголок 63х5-6","price":83000.0,"prev":null,"date":"2026-09-09"},{"title":"Швеллер 10П ГОСТ 8240-89","short":"Швеллер 10П","price":99000.0,"prev":null,"date":"2026-09-09"},{"title":"Швеллер 12П ГОСТ 8240-89","short":"Швеллер 12П","price":106000.0,"prev":null,"date":"2026-09-09"},{"title":"Балка 30Б1 СТО АСЧМ 20-93","short":"Балка 30Б1","price":88600.0,"prev":null,"date":"2026-09-09"},{"title":"Балка 30Ш1 СТО АСЧМ 20-93","short":"Балка 30Ш1","price":88300.0,"prev":null,"date":"2026-09-09"}]};
+
+const RUB = v => Math.round(v).toLocaleString("ru-RU").replace(/ /g, " ");
+const PCT = v => (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(1).replace(".", ",") + " %";
+const DMY = iso => { const [y, m, d] = iso.split("-"); return `${d}.${m}.${y}`; };
+const DM = iso => { const [, m, d] = iso.split("-"); return `${d}.${m}`; };
+
+const SERIES = [
+  { key: "own", label: "Наш индекс (ежедневно)", color: "var(--series-own)" },
+  { key: "spimex", label: "Биржа СПбМТСБ", color: "var(--series-spimex)" },
+  { key: "metalinfo", label: "Индекс metalinfo.ru", color: "var(--series-metalinfo)" },
+];
+
+function daysAgo(n) {
+  const d = new Date(DATA.updated + "T00:00:00");
+  d.setDate(d.getDate() - n);
+  return d.toISOString().slice(0, 10);
+}
+
+function filterFrom(points, from) {
+  return from ? points.filter(p => p[0] >= from) : points.slice();
+}
+
+// ── Отрисовка ───────────────────────────────────────────────────────────────
+function draw(host, legendHost, lines, opts) {
+  // Правое поле оставлено под подписи последних значений: они обязательны,
+  // потому что зелёный ряд на светлой подложке не дотягивает до контраста
+  // 3:1, и опознавать линию только по цвету нельзя.
+  const W = 900, H = 340, PAD = { t: 14, r: 74, b: 30, l: 58 };
+  const visible = lines.filter(l => l.points.length);
+  if (!visible.length) { host.innerHTML = "<p class='sub'>Нет данных за период</p>"; return; }
+
+  const xs = visible.flatMap(l => l.points.map(p => +new Date(p[0])));
+  const ys = visible.flatMap(l => l.points.map(p => p[1]));
+  const x0 = Math.min(...xs), x1 = Math.max(...xs);
+  const lo = Math.min(...ys), hi = Math.max(...ys);
+  const span = Math.max(hi - lo, opts.minSpan || 0);
+  const mid = (lo + hi) / 2;
+
+  // Шаг сетки — «круглое» число (1, 2 или 5 на порядок), иначе подписи оси
+  // выглядят как 78 799 и 78 317 вместо 78 000 и 78 500.
+  const raw = span * 1.24 / 4;
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const norm = raw / mag;
+  const stepY = (norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10) * mag;
+  const y0 = Math.floor((mid - span * 0.62) / stepY) * stepY;
+  const y1 = Math.ceil((mid + span * 0.62) / stepY) * stepY;
+
+  const px = t => PAD.l + (x1 === x0 ? 0.5 : (t - x0) / (x1 - x0)) * (W - PAD.l - PAD.r);
+  const py = v => PAD.t + (1 - (v - y0) / (y1 - y0)) * (H - PAD.t - PAD.b);
+
+  const gridY = [];
+  for (let v = y0; v <= y1 + stepY * 1e-6; v += stepY) gridY.push(v);
+
+  const allDates = [...new Set(visible.flatMap(l => l.points.map(p => p[0])))].sort();
+  const step = Math.max(1, Math.ceil(allDates.length / 8));
+  const ticksX = allDates.filter((_, i) => i % step === 0 || i === allDates.length - 1);
+
+  const path = pts => pts.map((p, i) => (i ? "L" : "M") + px(+new Date(p[0])).toFixed(1) + " " + py(p[1]).toFixed(1)).join(" ");
+
+  let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${opts.aria}">`;
+  gridY.forEach(v => {
+    svg += `<line x1="${PAD.l}" y1="${py(v).toFixed(1)}" x2="${W - PAD.r}" y2="${py(v).toFixed(1)}" stroke="var(--grid)" stroke-width="1"/>`;
+    svg += `<text x="${PAD.l - 10}" y="${(py(v) + 4).toFixed(1)}" text-anchor="end" font-size="12" fill="var(--text-muted)">${opts.fmtY(v)}</text>`;
+  });
+  ticksX.forEach(d => {
+    svg += `<text x="${px(+new Date(d)).toFixed(1)}" y="${H - 8}" text-anchor="middle" font-size="12" fill="var(--text-muted)">${DM(d)}</text>`;
+  });
+  svg += `<line x1="${PAD.l}" y1="${H - PAD.b}" x2="${W - PAD.r}" y2="${H - PAD.b}" stroke="var(--axis)" stroke-width="1"/>`;
+
+  const labels = [];
+  visible.forEach(l => {
+    svg += `<path d="${path(l.points)}" fill="none" stroke="${l.color}" stroke-width="2"
+      stroke-linejoin="round" stroke-linecap="round" ${l.dashed ? 'stroke-dasharray="3 4" opacity="0.75"' : ""}/>`;
+    const last = l.points[l.points.length - 1];
+    if (!l.dashed) {
+      svg += `<circle cx="${px(+new Date(last[0])).toFixed(1)}" cy="${py(last[1]).toFixed(1)}" r="4"
+        fill="${l.color}" stroke="var(--surface-1)" stroke-width="2"/>`;
+      labels.push({ y: py(last[1]), x: px(+new Date(last[0])), text: opts.fmtLabel(last[1]) });
+    }
+  });
+
+  // Подписи близких значений налезали бы друг на друга — разводим по вертикали.
+  labels.sort((a, b) => a.y - b.y);
+  labels.forEach((lab, i) => {
+    if (i && lab.y - labels[i - 1].y < 14) lab.y = labels[i - 1].y + 14;
+    svg += `<text x="${Math.min(lab.x + 9, W - PAD.r + 6).toFixed(1)}" y="${(lab.y + 4).toFixed(1)}"
+      font-size="12" font-weight="500" fill="var(--text-secondary)">${lab.text}</text>`;
+  });
+
+  svg += `<g id="cross" style="opacity:0"><line y1="${PAD.t}" y2="${H - PAD.b}" stroke="var(--axis)" stroke-width="1"/></g>`;
+  svg += `<rect x="${PAD.l}" y="${PAD.t}" width="${W - PAD.l - PAD.r}" height="${H - PAD.t - PAD.b}" fill="transparent" id="hit"/>`;
+  svg += `</svg><div class="tooltip"></div>`;
+  host.innerHTML = svg;
+
+  legendHost.innerHTML = visible.map(l =>
+    `<span style="color:${l.color}"><i class="${l.dashed ? "dashed" : ""}" style="background:${l.color}"></i><span style="color:var(--text-secondary)">${l.label}</span></span>`
+  ).join("");
+
+  // ── Наведение: вертикаль + значения всех рядов на эту дату ────────────────
+  const svgEl = host.querySelector("svg");
+  const tip = host.querySelector(".tooltip");
+  const cross = host.querySelector("#cross");
+  const crossLine = cross.querySelector("line");
+
+  svgEl.addEventListener("pointermove", e => {
+    const box = svgEl.getBoundingClientRect();
+    const t = x0 + ((e.clientX - box.left) / box.width * W - PAD.l) / (W - PAD.l - PAD.r) * (x1 - x0);
+    let best = allDates[0], bestDiff = Infinity;
+    allDates.forEach(d => { const diff = Math.abs(+new Date(d) - t); if (diff < bestDiff) { bestDiff = diff; best = d; } });
+
+    const rows = visible.map(l => {
+      const p = l.points.find(p => p[0] === best);
+      return p ? `<div class="row"><i style="background:${l.color}"></i>${l.label}<span class="num">${opts.fmtTip(p[1])}</span></div>` : "";
+    }).join("");
+    if (!rows) return;
+
+    cross.style.opacity = 1;
+    crossLine.setAttribute("x1", px(+new Date(best)).toFixed(1));
+    crossLine.setAttribute("x2", px(+new Date(best)).toFixed(1));
+    tip.innerHTML = `<b>${DMY(best)}</b>${rows}`;
+    tip.style.opacity = 1;
+    const left = px(+new Date(best)) / W * box.width;
+    tip.style.left = Math.min(Math.max(left + 14, 0), box.width - tip.offsetWidth - 4) + "px";
+    tip.style.top = "8px";
+  });
+  svgEl.addEventListener("pointerleave", () => { tip.style.opacity = 0; cross.style.opacity = 0; });
+}
+
+// ── Диапазоны ───────────────────────────────────────────────────────────────
+const RANGES = [
+  { label: "30 дней", days: 30 },
+  { label: "90 дней", days: 90 },
+  { label: "Всё время", days: null },
+];
+
+function mountRanges(host, initial, onPick) {
+  host.innerHTML = RANGES.map((r, i) =>
+    `<button type="button" aria-pressed="${i === initial}">${r.label}</button>`).join("");
+  [...host.children].forEach((btn, i) => btn.addEventListener("click", () => {
+    [...host.children].forEach(b => b.setAttribute("aria-pressed", "false"));
+    btn.setAttribute("aria-pressed", "true");
+    onPick(RANGES[i].days);
+  }));
+}
+
+// ── График 1: индекс в рублях ───────────────────────────────────────────────
+function renderIndex(days) {
+  const from = days ? daysAgo(days) : null;
+  const own = filterFrom(DATA.series.own, from);
+  const est = filterFrom(DATA.series.own_est, from);
+  // Пунктир оценки должен доходить до первой фактической точки, иначе линия рвётся.
+  const estJoined = est.length && own.length ? est.concat([own[0]]) : est;
+  draw(
+    document.getElementById("chart1"),
+    document.getElementById("legend1"),
+    [
+      { key: "est", label: "Оценка до начала сбора", color: "var(--series-own)", points: estJoined, dashed: true },
+      { key: "own", label: "Наш индекс (ежедневно)", color: "var(--series-own)", points: own },
+    ],
+    { fmtY: RUB, fmtTip: v => RUB(v) + " ₽", fmtLabel: RUB, minSpan: 600, aria: "Динамика индекса цен на сталь в рублях за тонну" }
+  );
+}
+
+// ── График 2: сравнение, приведённое к 100 ──────────────────────────────────
+function renderCompare(days) {
+  const from = days ? daysAgo(days) : null;
+  const lines = SERIES.map(s => {
+    const pts = filterFrom(DATA.series[s.key], from);
+    if (!pts.length) return { ...s, points: [] };
+    const base = pts[0][1];
+    return { ...s, points: pts.map(p => [p[0], p[1] / base * 100]) };
+  });
+  draw(
+    document.getElementById("chart2"),
+    document.getElementById("legend2"),
+    lines,
+    {
+      fmtY: v => v.toFixed(0),
+      fmtTip: v => (v - 100 >= 0 ? "+" : "−") + Math.abs(v - 100).toFixed(1).replace(".", ",") + " %",
+      fmtLabel: v => (v - 100 >= 0 ? "+" : "−") + Math.abs(v - 100).toFixed(1).replace(".", ",") + " %",
+      minSpan: 2,
+      aria: "Сравнение динамики индексов, приведённых к 100 на начало периода",
+    }
+  );
+}
+
+// ── Шапка и таблица ─────────────────────────────────────────────────────────
+let currentRange1 = 30, currentRange2 = 90;
+
+(function init() {
+  const own = DATA.series.own;
+  if (own.length) {
+    const [day, value] = own[own.length - 1];
+    document.getElementById("heroValue").innerHTML = RUB(value) + '<span class="unit">руб/т</span>';
+    if (own.length > 1) {
+      const prev = own[own.length - 2];
+      const delta = value - prev[1], pct = (value / prev[1] - 1) * 100;
+      document.getElementById("heroDelta").innerHTML =
+        `<span class="${delta >= 0 ? "up" : "down"}">${delta >= 0 ? "+" : "−"}${RUB(Math.abs(delta))} ₽ (${PCT(pct)})</span>` +
+        ` <span style="color:var(--text-muted)">за сутки, с ${DMY(prev[0])}</span>`;
+    }
+    document.getElementById("heroMeta").innerHTML =
+      `Данные на ${DMY(day)}<br>Корзина: ${DATA.positions.length} позиций`;
+  }
+
+  document.getElementById("positionsBody").innerHTML = DATA.positions.map(p => {
+    let change = "—";
+    if (p.prev != null && p.prev) {
+      const pct = (p.price / p.prev - 1) * 100;
+      const cls = Math.abs(pct) < 0.05 ? "" : pct > 0 ? "up" : "down";
+      change = `<span class="${cls}">${Math.abs(pct) < 0.05 ? "0,0 %" : PCT(pct)}</span>`;
+    }
+    return `<tr><td>${p.title}</td><td class="num">${RUB(p.price)}</td><td class="num">${change}</td></tr>`;
+  }).join("");
+
+  if (DATA.factFrom) document.getElementById("factFrom").textContent = DMY(DATA.factFrom);
+  document.getElementById("updatedLine").textContent =
+    `Обновлено: ${DMY(DATA.updated)}. Страница пересобирается автоматически после каждого сбора данных.`;
+
+  mountRanges(document.getElementById("ranges1"), 0, d => { currentRange1 = d; renderIndex(d); });
+  mountRanges(document.getElementById("ranges2"), 1, d => { currentRange2 = d; renderCompare(d); });
+  renderIndex(currentRange1);
+  renderCompare(currentRange2);
+
+  // Перерисовка нужна не из-за размеров (SVG тянется сам), а чтобы подсказка
+  // и вертикаль пересчитались под новую ширину.
+  let resizeTimer;
+  window.addEventListener("resize", () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => { renderIndex(currentRange1); renderCompare(currentRange2); }, 150);
+  });
+})();
+</script>
+</body>
+</html>
